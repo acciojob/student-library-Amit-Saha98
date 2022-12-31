@@ -27,7 +27,7 @@ public class TransactionController {
 
     @PostMapping("/returnBook")
     public ResponseEntity returnBook(@RequestParam("cardId") int cardId, @RequestParam("bookId") int bookId) throws Exception{
-        transactionService.returnBook(cardId,bookId);
+        System.out.println(transactionService.returnBook(cardId,bookId));
         return new ResponseEntity<>("transaction completed", HttpStatus.ACCEPTED);
     }
 }
