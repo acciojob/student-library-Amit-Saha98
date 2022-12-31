@@ -4,6 +4,7 @@ import com.example.library.studentlibrary.models.*;
 import com.example.library.studentlibrary.repositories.BookRepository;
 import com.example.library.studentlibrary.repositories.CardRepository;
 import com.example.library.studentlibrary.repositories.TransactionRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 public class TransactionService {
 
     @Autowired
@@ -46,7 +48,30 @@ public class TransactionService {
 
         //Note that the error message should match exactly in all cases
 
-       return null; //return transactionId instead
+        Book book = bookRepository5.findById(bookId).get();
+        try {
+            if (book == null && book.isAvailable() == false)
+                throw new Exception("Book is either unavailable or not present");
+            Card card = cardRepository5.findById(cardId).get();
+            if (card == null && card.getCardStatus() == CardStatus.DEACTIVATED) throw new Exception("Card is invalid");
+            if (card == null && card.getCardStatus() == CardStatus.DEACTIVATED) throw new Exception("Card is invalid");
+            Transaction transaction = Transaction.builder().book(book).card(card).isIssueOperation(true).
+                    transactionStatus(TransactionStatus.SUCCESSFUL).build();
+            transactionRepository5.save(transaction);
+            book.setAvailable(false);
+            List<Book> bookList = card.getBooks();
+            bookList.add(book);
+            card.setBooks(bookList);
+            bookRepository5.save(book);
+            cardRepository5.save(card);
+            return transaction.getTransactionId();
+            }
+        catch (Exception e) {
+            Transaction transaction = Transaction.builder().transactionStatus(TransactionStatus.FAILED).isIssueOperation(false).build();
+            transactionRepository5.save(transaction);
+            return transaction.getTransactionId();
+        }
+        //return transactionId instead
     }
 
     public Transaction returnBook(int cardId, int bookId) throws Exception{
@@ -57,8 +82,27 @@ public class TransactionService {
         //for the given transaction calculate the fine amount considering the book has been returned exactly when this function is called
         //make the book available for other users
         //make a new transaction for return book which contains the fine amount as well
+        Transaction newTransaction = Transaction.builder().isIssueOperation(false).build();
+        long diffInMillies = Math.abs(newTransaction.getTransactionDate().getTime()-transaction.getTransactionDate().getTime());
+        long diff = TimeUnit.DAYS.convert(diffInMillies, TimeUnit.MILLISECONDS);
+        log.info("diff== "+diff);
+        if(diff>getMax_allowed_days){
+            newTransaction.setFineAmount(newTransaction.getFineAmount()+(int)((diff-getMax_allowed_days)*fine_per_day));
+        }
+        Book book = bookRepository5.findById(bookId).get();
+        book.setAvailable(true);
+        bookRepository5.save(book);
+        Card card = cardRepository5.findById(cardId).get();
+        List<Book>bookList=card.getBooks();
+        bookList.remove(book);
+        card.setBooks(bookList);
+        cardRepository5.save(card);
+        newTransaction.setTransactionStatus(TransactionStatus.SUCCESSFUL);
 
-        Transaction returnBookTransaction  = null;
+        transactionRepository5.save(newTransaction);
+
+
+        Transaction returnBookTransaction  = newTransaction;
         return returnBookTransaction; //return the transaction after updating all details
     }
 }
